@@ -52,7 +52,7 @@ Each has followings:
     
 - spatial/cytassist_image.tiff
     
-    ![image.png](Sp%20Trs%20Draft%20Notes%20120cb26dd6568085bcc9e2791d20c20e/image%202.png)
+    ![image.png](images/image_raw.png)
     
 - spatial/detected_tissue_image.jpg
     
@@ -80,7 +80,7 @@ Each has followings:
     
 - spatial/tissue_hires_image.png
     
-    ![image.png](Sp%20Trs%20Draft%20Notes%20120cb26dd6568085bcc9e2791d20c20e/image%204.png)
+    ![image.png](images/image_fluor.png)
     
 - spatial/tissue_lowres_image.png
     
