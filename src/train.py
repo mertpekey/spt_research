@@ -1,9 +1,10 @@
+import wandb
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import wandb
 
-from metrics import Metrics
+from src.metrics import Metrics
 
 def train(model, train_loader, val_loader, config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,7 +26,8 @@ def train(model, train_loader, val_loader, config):
 
             # Update training metrics
             train_metrics.loss += loss.item()
-            train_metrics.update(output.cpu().numpy(), proteins.cpu().numpy())
+            train_metrics.update(output.detach().cpu().numpy(), proteins.detach().cpu().numpy())
+            break
         
         # Validation
         val_metrics = evaluate(model, val_loader, criterion, device)

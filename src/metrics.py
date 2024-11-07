@@ -1,6 +1,7 @@
-from sklearn.metrics import root_mean_squared_error, mean_absolute_error
-from scipy.stats import pearsonr, spearmanr
 import wandb
+
+from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import root_mean_squared_error, mean_absolute_error
 
 class Metrics:
     def __init__(self):
