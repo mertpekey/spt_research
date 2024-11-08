@@ -5,7 +5,7 @@ import argparse
 from src.data_preprocessing import load_image, process_spot_coordinates, extract_spot_patches, load_data_with_split, set_random_seed
 from src.dataset import get_data_loaders, load_data
 from src.models.cnn_model import SpatialTranscriptomicsModel
-from src.train import train
+from src.train import train, evaluate
 
 def main(args):
     # Load config
@@ -34,7 +34,7 @@ def main(args):
     model = SpatialTranscriptomicsModel(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1])
 
     # Train
-    train(model, train_loader, val_loader, config)
+    train(model, config, train_loader, val_loader, test_loader)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

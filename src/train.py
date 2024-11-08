@@ -6,7 +6,7 @@ import torch.optim as optim
 
 from src.metrics import Metrics
 
-def train(model, train_loader, val_loader, config):
+def train(model, config, train_loader, val_loader, test_loader = None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     criterion = nn.MSELoss()
@@ -34,15 +34,23 @@ def train(model, train_loader, val_loader, config):
 
         # Log training loss and metrics
         if config['use_wandb']:
-            wandb.log({"epoch": epoch+1})
-            train_metrics.log("train")
-            val_metrics.log("val")
+            wandb.log({"epoch": epoch+1}, commit=False)
+            train_metrics.log("train", commit=False)
+            val_metrics.log("val", commit=True)
         
         # Print and log validation metrics
         print(f"Epoch [{epoch+1}/{config['epochs']}]")
         train_metrics.print_metrics("train")
         val_metrics.print_metrics("val")
         print()
+
+    # Evaluate on Test Set
+    if test_loader is not None:
+        test_metrics = evaluate(model, test_loader, criterion, device)
+        if config['use_wandb']:
+            test_metrics.log("test", commit=True)
+        test_metrics.print_metrics("test")
+
 
 def evaluate(model, data_loader, criterion, device):
     model.eval()
@@ -56,5 +64,4 @@ def evaluate(model, data_loader, criterion, device):
             # Update evaluation metrics
             eval_metrics.loss += loss.item()
             eval_metrics.update(output.cpu().numpy(), proteins.cpu().numpy())
-
     return eval_metrics

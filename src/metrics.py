@@ -33,10 +33,12 @@ class Metrics:
             "spearman_corr": self.spearman_corr / self.count if self.count > 0 else 0
         }
 
-    def log(self, prefix):
+    def log(self, prefix, commit=True):
         metrics = self.compute()
+        metrics_to_log = {}
         for metric_name, metric_value in metrics.items():
-            wandb.log({f"{prefix}/{metric_name}": metric_value})
+            metrics_to_log[f"{prefix}/{metric_name}"] = metric_value
+        wandb.log(metrics_to_log, commit=commit)
         return metrics
     
     def print_metrics(self, prefix):
