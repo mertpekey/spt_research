@@ -1,0 +1,15 @@
+sweep:
+  name: spt_sweep
+  method: random
+  metric:
+    goal: maximize
+    name: val/pearson_corr
+  parameters:
+    patch_size:
+      values: [32, 64, 128, 256]
+    batch_size:
+      values: [32, 64, 128]
+    learning_rate:
+      values: [0.00001, 0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03]
+    target_num_genes:
+      values: [2000, 3500, 5000, 6500, 8000]

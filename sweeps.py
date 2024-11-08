@@ -7,16 +7,18 @@ from src.dataset import get_data_loaders, load_data
 from src.models.cnn_model import SpatialTranscriptomicsModel
 from src.train import train
 
-def main(args):
+def main():
+    wandb.init(project=args.sweep_project_name)
+
     # Load config
     with open(args.config_path, 'r') as file:
         config = yaml.safe_load(file)
+    
+    for param, value in wandb.config.items():
+        config[param] = value
 
     # Set random seed
     set_random_seed(config['random_seed'])
-
-    if config['use_wandb']:
-        wandb.init(project=config['wandb_project'], name=config['wandb_name'], config=config)
 
     # Load data
     adata, pdata = load_data(config)
@@ -36,9 +38,23 @@ def main(args):
     # Train
     train(model, config, train_loader, val_loader, test_loader)
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="debug_config.yaml", help="Path to config file")
+    # Parse Arguments
+    parser = argparse.ArgumentParser(description='Sweep Hyperparameter Search')
+    parser.add_argument('--config_path', default='configs/example_config.yaml', help='Config yaml file of model', type=str)
+    parser.add_argument('--sweep_config_path', default='configs/sweep_config.yaml', help='Sweep Config yaml file path', type=str)
+    parser.add_argument('--sweep_project_name', default='spt_sweep', help='Sweep Project Name in Wandb', type=str)
+    parser.add_argument('--sweep_count', default=1, help='Number of Different Hyperparameter Runs', type=int)
+    
+    global args
     args = parser.parse_args()
-    main(args)
+
+    with open(args.sweep_config_path, 'r') as file:
+        sweep_configuration = yaml.safe_load(file)['sweep']
+
+    sweep_count = None if sweep_configuration['method'] == 'grid' else args.sweep_count
+
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.sweep_project_name)
+    wandb.agent(sweep_id, function=main, count=sweep_count)
     
