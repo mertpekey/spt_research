@@ -2,10 +2,13 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-class SpatialTranscriptomicsModel(nn.Module):
-    def __init__(self, num_genes, num_proteins):
-        super(SpatialTranscriptomicsModel, self).__init__()
-        self.cnn = models.resnet18(pretrained=True)
+class CNN_Model(nn.Module):
+    def __init__(self, num_genes, num_proteins, pretrained=False):
+        super(CNN_Model, self).__init__()
+
+        weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+        
+        self.cnn = models.resnet18(weights = weights)
         self.cnn.fc = nn.Identity()
         
         self.gene_fc = nn.Sequential(nn.Linear(num_genes, 256), nn.ReLU())

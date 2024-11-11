@@ -1,4 +1,5 @@
 import wandb
+import copy
 
 import torch
 import torch.nn as nn
@@ -12,6 +13,9 @@ def train(model, config, train_loader, val_loader, test_loader = None):
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'])
 
+    best_val_loss = float('inf')
+    best_model_weights = None
+    
     for epoch in range(config['epochs']):
         model.train()
         train_metrics = Metrics()
@@ -32,6 +36,13 @@ def train(model, config, train_loader, val_loader, test_loader = None):
         # Validation
         val_metrics = evaluate(model, val_loader, criterion, device)
 
+        # Best model saving
+        val_loss = val_metrics.loss / val_metrics.count
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model_weights = copy.deepcopy(model.state_dict())  # Copy the model weights
+            best_model_weights = {k: v.cpu() for k, v in best_model_weights.items()}
+
         # Log training loss and metrics
         if config['use_wandb']:
             wandb.log({"epoch": epoch+1}, commit=False)
@@ -46,7 +57,14 @@ def train(model, config, train_loader, val_loader, test_loader = None):
 
     # Evaluate on Test Set
     if test_loader is not None:
+        # Load best model weights
+        model.load_state_dict(best_model_weights)
+        model.to(device)
+        print("Best model loaded.")
+    
         test_metrics = evaluate(model, test_loader, criterion, device)
+        
+        test_metrics.plot_mse_heatmap(file_name="test_mse_error_heatmap.png", log_wandb=config['use_wandb'])
         if config['use_wandb']:
             test_metrics.log("test", commit=True)
         test_metrics.print_metrics("test")

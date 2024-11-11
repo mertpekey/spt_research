@@ -4,7 +4,8 @@ import argparse
 
 from src.data_preprocessing import load_image, process_spot_coordinates, extract_spot_patches, load_data_with_split, set_random_seed
 from src.dataset import get_data_loaders, load_data
-from src.models.cnn_model import SpatialTranscriptomicsModel
+from src.models.cnn_model import CNN_Model
+from src.models.vit_model import VIT_Model
 from src.train import train
 
 def main(args):
@@ -31,7 +32,12 @@ def main(args):
     test_loader = get_data_loaders(*test_data, config, shuffle=False)
 
     # Model
-    model = SpatialTranscriptomicsModel(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1])
+    if config['model_name'] == 'resnet':
+        model = CNN_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], pretrained = config['pretrained'])
+    elif config['model_name'] == 'vit':
+        model = VIT_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], pretrained = config['pretrained'])
+    else:
+        print('Model is not valid')
 
     # Train
     train(model, config, train_loader, val_loader, test_loader)

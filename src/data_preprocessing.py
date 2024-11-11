@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 import torch
 import torchvision.transforms as transforms
 
+from transformers import ViTFeatureExtractor
+
 
 def set_random_seed(seed):
     torch.manual_seed(seed)
@@ -17,8 +19,13 @@ def load_image(adata, config):
     img = adata.uns['spatial'][config['hires_image_key']]['images']['hires']
     img = (img * 255).astype(np.uint8) if img.dtype == np.float32 else img
     img = Image.fromarray(img)
-    transform = transforms.ToTensor()
-    img_tensor = transform(img)
+
+    if config['model_name'] == 'vit':
+        feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224")
+        img_tensor = feature_extractor(images=img, return_tensors="pt")["pixel_values"].squeeze(0)
+    else:
+        transform = transforms.ToTensor()
+        img_tensor = transform(img)
     return img_tensor
 
 def process_spot_coordinates(adata, config):
