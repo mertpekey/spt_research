@@ -6,8 +6,6 @@ from sklearn.model_selection import train_test_split
 import torch
 import torchvision.transforms as transforms
 
-from transformers import ViTFeatureExtractor
-
 
 def set_random_seed(seed):
     torch.manual_seed(seed)
@@ -19,13 +17,8 @@ def load_image(adata, config):
     img = adata.uns['spatial'][config['hires_image_key']]['images']['hires']
     img = (img * 255).astype(np.uint8) if img.dtype == np.float32 else img
     img = Image.fromarray(img)
-
-    if config['model_name'] == 'vit':
-        feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224")
-        img_tensor = feature_extractor(images=img, return_tensors="pt")["pixel_values"].squeeze(0)
-    else:
-        transform = transforms.ToTensor()
-        img_tensor = transform(img)
+    transform = transforms.ToTensor()
+    img_tensor = transform(img)
     return img_tensor
 
 def process_spot_coordinates(adata, config):
@@ -34,6 +27,7 @@ def process_spot_coordinates(adata, config):
     return coords.astype(int)
 
 def extract_spot_patches(img_tensor, coords, config):
+    process_fn = get_transformations(config)
     patch_size = config['patch_size']
     half_patch = patch_size // 2
     patches = []
@@ -45,8 +39,19 @@ def extract_spot_patches(img_tensor, coords, config):
             max(0, x-half_patch):min(x+half_patch, img_tensor.shape[2])
         ]
         if patch.shape[1] == patch_size and patch.shape[2] == patch_size:
+            patch = process_fn(patch) if process_fn is not None else patch
             patches.append(patch)
     return torch.stack(patches)
+
+def get_transformations(config):
+    if config['model_name'] == 'vit':
+        return transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((224, 224)),  # ViT requires 224x224 patches
+            transforms.ToTensor()
+        ])
+    else:
+        return None
 
 def filter_genes_by_variance(gene_data, target_num_genes=5000):
     gene_variances = torch.var(gene_data, dim=0)

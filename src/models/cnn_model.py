@@ -3,13 +3,16 @@ import torch.nn as nn
 import torchvision.models as models
 
 class CNN_Model(nn.Module):
-    def __init__(self, num_genes, num_proteins, pretrained=False):
+    def __init__(self, num_genes, num_proteins, config):
         super(CNN_Model, self).__init__()
 
-        weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+        weights = models.ResNet18_Weights.IMAGENET1K_V1 if config['pretrained'] else None
         
         self.cnn = models.resnet18(weights = weights)
         self.cnn.fc = nn.Identity()
+        if config['freeze_image_model']:
+            for param in self.cnn.parameters():
+                param.requires_grad = False
         
         self.gene_fc = nn.Sequential(nn.Linear(num_genes, 256), nn.ReLU())
         

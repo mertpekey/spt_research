@@ -11,4 +11,6 @@ wandb_name: 'resnet18'
 evaluation_metrics: ['RMSE', 'MAE', 'pearson_correlation', 'spearman_correlation']
 random_seed: 42
 model_name: 'resnet'
+vit_model_name: ''
 pretrained: true
+freeze_image_model: false

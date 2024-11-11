@@ -33,9 +33,9 @@ def main(args):
 
     # Model
     if config['model_name'] == 'resnet':
-        model = CNN_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], pretrained = config['pretrained'])
+        model = CNN_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], config=config)
     elif config['model_name'] == 'vit':
-        model = VIT_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], pretrained = config['pretrained'])
+        model = VIT_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], config=config)
     else:
         print('Model is not valid')
 
@@ -44,7 +44,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="debug_config.yaml", help="Path to config file")
+    parser.add_argument("--config_path", type=str, default="configs/vit_config.yaml", help="Path to config file")
     args = parser.parse_args()
     main(args)
     

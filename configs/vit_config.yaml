@@ -1,8 +1,8 @@
 sample_id: Spatial_CITEseq_Tonsil1
 hires_image_key: CytAssist_FFPE_Protein_Expression_Human_Tonsil
-patch_size: 256
+patch_size: 224
 batch_size: 128
-epochs: 2
+epochs: 100
 learning_rate: 0.001
 target_num_genes: 2000
 use_wandb: true
@@ -11,4 +11,6 @@ wandb_name: 'vit-base'
 evaluation_metrics: ['RMSE', 'MAE', 'pearson_correlation', 'spearman_correlation']
 random_seed: 42
 model_name: 'vit'
+vit_model_name: 'google/vit-base-patch16-224'
 pretrained: true
+freeze_image_model: false

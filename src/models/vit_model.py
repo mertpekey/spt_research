@@ -3,13 +3,16 @@ import torch.nn as nn
 from transformers import ViTModel, ViTConfig
 
 class VIT_Model(nn.Module):
-    def __init__(self, num_genes, num_proteins, vit_model_name="google/vit-base-patch16-224"):
+    def __init__(self, num_genes, num_proteins, config):
         super(VIT_Model, self).__init__()
         
-        self.vit = ViTModel.from_pretrained(vit_model_name)
-        # Freeze model parameters
-        for param in self.vit.parameters():
-            param.requires_grad = False
+        if config['pretrained']:
+            self.vit = ViTModel.from_pretrained(config['vit_model_name'])
+            if config['freeze_image_model']:
+                for param in self.vit.parameters():
+                    param.requires_grad = False
+        else:
+            self.vit = ViTModel(ViTConfig())
 
         vit_output_dim = self.vit.config.hidden_size
         self.vit_fc = nn.Linear(vit_output_dim, 256)
