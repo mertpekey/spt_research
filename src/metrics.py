@@ -82,4 +82,4 @@ class Metrics:
         plt.close()
 
         if log_wandb:
-            wandb.log({"RMSE Error Heatmap": wandb.Image(file_name)}, commit=False)
+            wandb.log({"RMSE Error Heatmap": wandb.Image(f"supplementary/{file_name}")}, commit=False)
