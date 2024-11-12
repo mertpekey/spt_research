@@ -68,6 +68,10 @@ def train(model, config, train_loader, val_loader, test_loader = None):
         test_metrics.plot_spearman_heatmap(file_name="test_spearman_heatmap.png", log_wandb=config['use_wandb'])
         test_metrics.plot_rmse_heatmap(file_name="test_rmse_heatmap.png", log_wandb=config['use_wandb'])
 
+        test_metrics.plot_pearson_boxplot(file_name="test_pearson_boxplot.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_spearman_boxplot(file_name="test_spearman_boxplot.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_rmse_boxplot(file_name="test_rmse_boxplot.png", log_wandb=config['use_wandb'])
+        
         if config['use_wandb']:
             test_metrics.log("test", commit=True)
         test_metrics.print_metrics("test")
