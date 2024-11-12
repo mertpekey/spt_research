@@ -3,6 +3,7 @@ import wandb
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import scanpy as sc
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import root_mean_squared_error, mean_absolute_error
 
@@ -19,6 +20,8 @@ class Metrics:
         self.spearman_corr = 0
         self.count = 0
         self.errors = []
+        self.pearson_values = []
+        self.spearman_values = []
 
     def update(self, output, target):
         num_proteins = target.shape[1]
@@ -31,9 +34,18 @@ class Metrics:
         self.spearman_corr += spearmanr(target, output)[0]
         self.count += 1
 
-        # Calculate errors and store for visualizatiosn
-        rmse_spots = np.sqrt((output.reshape(-1, num_proteins) - target.reshape(-1, num_proteins)) ** 2)
+        # Calculate per-protein Pearson and Spearman correlations and errors across spots
+        output_matrix = output.reshape(-1, num_proteins)
+        target_matrix = target.reshape(-1, num_proteins)
+
+        rmse_spots = np.sqrt((output_matrix - target_matrix) ** 2)
         self.errors.append(rmse_spots)
+        
+        per_protein_pearson = [pearsonr(output_matrix[:, i], target_matrix[:, i])[0] for i in range(num_proteins)]
+        per_protein_spearman = [spearmanr(output_matrix[:, i], target_matrix[:, i])[0] for i in range(num_proteins)]
+
+        self.pearson_values.append(per_protein_pearson)
+        self.spearman_values.append(per_protein_spearman)
 
     def compute(self):
         return {
@@ -58,28 +70,53 @@ class Metrics:
             print(f"{prefix} {metric_name}: {metric_value:.4f}, ", end="")
         return metrics
 
-    def plot_mse_heatmap(self, file_name="rmse_error_heatmap.png", log_wandb=True):
-        errors_np = np.vstack(self.errors)  # Shape: (num_spots, num_proteins)
-        mean_errors_per_protein = errors_np.mean(axis=0).reshape(1, -1)
+    def plot_pearson_heatmap(self, file_name="pearson_heatmap.png", log_wandb=True):
+        self._plot_heatmap(self.pearson_values, "Pearson Correlation", file_name, log_wandb)
     
-        num_proteins = mean_errors_per_protein.shape[1]
+    def plot_spearman_heatmap(self, file_name="spearman_heatmap.png", log_wandb=True):
+        self._plot_heatmap(self.spearman_values, "Spearman Correlation", file_name, log_wandb)
+
+    def plot_rmse_heatmap(self, file_name="rmse_heatmap.png", log_wandb=True):
+        self._plot_heatmap(self.errors, "RMSE", file_name, log_wandb)
+
+    def _plot_heatmap(self, heatmap_values, title, file_name, log_wandb):
+        heatmap_np = np.vstack(heatmap_values)  # Shape: (num_spots, num_proteins)
+        mean_val_per_protein = heatmap_np.mean(axis=0)  # Average correlation per protein
+
+        # Load gene IDs
+        pdata_gene_ids = self.protein_metadata['gene_ids']
+        
+        # Sort by correlation and gene IDs
+        sorted_indices = np.argsort(-mean_val_per_protein)
+        mean_val_per_protein = mean_val_per_protein[sorted_indices].reshape(1, -1)
+        sorted_gene_ids = pdata_gene_ids[sorted_indices]
+    
+        num_proteins = mean_val_per_protein.shape[1]
         fig_width = max(12, num_proteins / 4)
         plt.figure(figsize=(fig_width, 3))
         
         sns.heatmap(
-            mean_errors_per_protein,
+            mean_val_per_protein,
             cmap='coolwarm',
             annot=True,
             fmt=".3f",
             annot_kws={"size": 7, "rotation": 90, "ha": "center", "va": "center"},
-            cbar_kws={'label': 'Average RMSE Error'}
+            cbar_kws={'label': f'Average {title}'}
+        )
+
+        plt.xticks(
+            ticks=np.arange(num_proteins) + 0.5,
+            labels=sorted_gene_ids,
+            rotation=90,
+            ha="center",
+            fontsize=8
         )
         
-        plt.xlabel('Protein Index', fontsize=10)
+        plt.xlabel('Protein Gene ID', fontsize=10)
         plt.ylabel('Average Across Spots', fontsize=10)
-        plt.title('Average RMSE Error Per Protein', fontsize=12)
+        plt.title(f'Average {title} Per Protein', fontsize=12)
         plt.savefig(f"supplementary/{file_name}", format='png', dpi=300, bbox_inches='tight')
         plt.close()
 
         if log_wandb:
-            wandb.log({"RMSE Error Heatmap": wandb.Image(f"supplementary/{file_name}")}, commit=False)
+            wandb.log({f"{title} Heatmap": wandb.Image(f"supplementary/{file_name}")}, commit=False)

@@ -64,7 +64,10 @@ def train(model, config, train_loader, val_loader, test_loader = None):
     
         test_metrics = evaluate(model, test_loader, criterion, device)
         
-        test_metrics.plot_mse_heatmap(file_name="test_mse_error_heatmap.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_pearson_heatmap(file_name="test_pearson_heatmap.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_spearman_heatmap(file_name="test_spearman_heatmap.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_rmse_heatmap(file_name="test_rmse_heatmap.png", log_wandb=config['use_wandb'])
+
         if config['use_wandb']:
             test_metrics.log("test", commit=True)
         test_metrics.print_metrics("test")
@@ -73,6 +76,7 @@ def train(model, config, train_loader, val_loader, test_loader = None):
 def evaluate(model, data_loader, criterion, device):
     model.eval()
     eval_metrics = Metrics()
+    eval_metrics.protein_metadata = data_loader.dataset.protein_metadata
     with torch.no_grad():
         for img, genes, proteins in data_loader:
             img, genes, proteins = img.to(device), genes.to(device), proteins.to(device)

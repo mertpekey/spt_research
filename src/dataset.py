@@ -6,10 +6,13 @@ from anndata import AnnData
 from torch.utils.data import DataLoader, Dataset
 
 class SpatialDataset(Dataset):
-    def __init__(self, spot_patches, gene_data, protein_data):
+    def __init__(self, spot_patches, gene_data, protein_data, protein_metadata):
         self.spot_patches = spot_patches
         self.gene_data = gene_data
         self.protein_data = protein_data
+        
+        # Metadata
+        self.protein_metadata = protein_metadata
     
     def __len__(self):
         return len(self.spot_patches)
@@ -17,8 +20,8 @@ class SpatialDataset(Dataset):
     def __getitem__(self, idx):
         return self.spot_patches[idx], self.gene_data[idx], self.protein_data[idx]
 
-def get_data_loaders(gene_data, protein_data, spot_patches, config, shuffle=True):
-    dataset = SpatialDataset(spot_patches, gene_data, protein_data)
+def get_data_loaders(gene_data, protein_data, spot_patches, protein_metadata, config, shuffle=True):
+    dataset = SpatialDataset(spot_patches, gene_data, protein_data, protein_metadata)
     return DataLoader(dataset, batch_size=config['batch_size'], shuffle=shuffle)
 
 def load_data(config):

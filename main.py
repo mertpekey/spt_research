@@ -27,9 +27,9 @@ def main(args):
     train_data, val_data, test_data = load_data_with_split(adata, pdata, spot_patches, config)
 
     # Data loaders
-    train_loader = get_data_loaders(*train_data, config, shuffle=True)
-    val_loader = get_data_loaders(*val_data, config, shuffle=False)
-    test_loader = get_data_loaders(*test_data, config, shuffle=False)
+    train_loader = get_data_loaders(*train_data, pdata.var, config, shuffle=True)
+    val_loader = get_data_loaders(*val_data, pdata.var, config, shuffle=False)
+    test_loader = get_data_loaders(*test_data, pdata.var, config, shuffle=False)
 
     # Model
     if config['model_name'] == 'resnet':
