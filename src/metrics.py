@@ -111,6 +111,7 @@ class Metrics:
             ha="center",
             fontsize=8
         )
+        plt.yticks([])
         
         plt.xlabel('Protein Gene ID', fontsize=10)
         plt.ylabel('Average Across Spots', fontsize=10)
