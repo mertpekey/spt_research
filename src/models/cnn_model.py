@@ -6,11 +6,11 @@ class CNN_Model(nn.Module):
     def __init__(self, num_genes, num_proteins, config):
         super(CNN_Model, self).__init__()
 
-        weights = models.ResNet18_Weights.IMAGENET1K_V1 if config['pretrained'] else None
+        weights = models.ResNet18_Weights.IMAGENET1K_V1 if config['image_model']['pretrained'] else None
         
         self.cnn = models.resnet18(weights = weights)
         self.cnn.fc = nn.Identity()
-        if config['freeze_image_model']:
+        if config['image_model']['freeze_parameters']:
             for param in self.cnn.parameters():
                 param.requires_grad = False
         

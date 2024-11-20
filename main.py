@@ -2,7 +2,7 @@ import yaml
 import wandb
 import argparse
 
-from src.data_preprocessing import load_image, process_spot_coordinates, extract_spot_patches, load_data_with_split, set_random_seed
+from src.data_preprocessing import load_image, process_spot_coordinates, extract_spot_patches, load_data_with_split, set_random_seed, load_all_splits_randomly
 from src.dataset import get_data_loaders, load_data
 from src.models.cnn_model import CNN_Model
 from src.models.vit_model import VIT_Model
@@ -14,27 +14,38 @@ def main(args):
         config = yaml.safe_load(file)
 
     # Set random seed
-    set_random_seed(config['random_seed'])
+    set_random_seed(config['hyperparameters']['random_seed'])
 
-    if config['use_wandb']:
-        wandb.init(project=config['wandb_project'], name=config['wandb_name'], config=config)
+    if config['logging']['use_wandb']:
+        wandb.init(project=config['logging']['wandb_project'], name=config['logging']['wandb_name'], config=config)
 
     # Load data
-    adata, pdata = load_data(config)
-    img_tensor = load_image(adata, config)
-    coords = process_spot_coordinates(adata, config)
-    spot_patches = extract_spot_patches(img_tensor, coords, config)
-    train_data, val_data, test_data = load_data_with_split(adata, pdata, spot_patches, config)
+    if config['train_data']['sample_id'] == config['test_data']['sample_id']:
+        adata, pdata = load_data(config, split)
+        img_tensor = load_image(adata, config, split)
+        coords = process_spot_coordinates(adata, config, split)
+        spot_patches = extract_spot_patches(img_tensor, coords, config)
+        train_data, val_data, test_data = load_all_splits_randomly(adata, pdata, spot_patches, config)
+    else:
+        for split in ['train', 'test']:
+            adata, pdata = load_data(config, split)
+            img_tensor = load_image(adata, config, split)
+            coords = process_spot_coordinates(adata, config, split)
+            spot_patches = extract_spot_patches(img_tensor, coords, config)
+            if split == 'train':
+                train_data, val_data = load_data_with_split(adata, pdata, spot_patches, config, split)
+            else:
+                test_data = load_data_with_split(adata, pdata, spot_patches, config, split)
 
     # Data loaders
     train_loader = get_data_loaders(*train_data, pdata.var, config, shuffle=True)
-    val_loader = get_data_loaders(*val_data, pdata.var, config, shuffle=False)
+    val_loader = get_data_loaders(*val_data, pdata.var, config, shuffle=False) if val_data is not None else None
     test_loader = get_data_loaders(*test_data, pdata.var, config, shuffle=False)
 
     # Model
-    if config['model_name'] == 'resnet':
+    if config['image_model']['model_type'] == 'resnet':
         model = CNN_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], config=config)
-    elif config['model_name'] == 'vit':
+    elif config['image_model']['model_type'] == 'vit':
         model = VIT_Model(num_genes=train_data[0].shape[1], num_proteins=train_data[1].shape[1], config=config)
     else:
         print('Model is not valid')
@@ -44,7 +55,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="configs/vit_config.yaml", help="Path to config file")
+    parser.add_argument("--config_path", type=str, default="configs/debug_config.yaml", help="Path to config file")
     args = parser.parse_args()
     main(args)
     

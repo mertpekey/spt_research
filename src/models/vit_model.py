@@ -7,8 +7,8 @@ class VIT_Model(nn.Module):
         super(VIT_Model, self).__init__()
         
         if config['pretrained']:
-            self.vit = ViTModel.from_pretrained(config['vit_model_name'])
-            if config['freeze_image_model']:
+            self.vit = ViTModel.from_pretrained(config['image_model']['model_name'])
+            if config['freeze_parameters']:
                 for param in self.vit.parameters():
                     param.requires_grad = False
         else:

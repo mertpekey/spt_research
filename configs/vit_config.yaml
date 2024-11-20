@@ -1,16 +1,28 @@
-sample_id: Spatial_CITEseq_Tonsil1
-hires_image_key: CytAssist_FFPE_Protein_Expression_Human_Tonsil
-patch_size: 224
-batch_size: 128
-epochs: 100
-learning_rate: 0.001
-target_num_genes: 2000
-use_wandb: true
-wandb_project: 'spatial_transcriptomics'
-wandb_name: 'vit-base'
-evaluation_metrics: ['RMSE', 'MAE', 'pearson_correlation', 'spearman_correlation']
-random_seed: 42
-model_name: 'vit'
-vit_model_name: 'google/vit-base-patch16-224'
-pretrained: false
-freeze_image_model: false
+train_data:
+  sample_id: Spatial_CITEseq_Tonsil1
+  hires_image_key: CytAssist_FFPE_Protein_Expression_Human_Tonsil
+
+test_data:
+  sample_id: Spatial_CITEseq_Tonsil2
+  hires_image_key: CytAssist_FFPE_Protein_Expression_Human_Tonsil_AddOns
+
+image_model:
+  model_type: 'vit'
+  model_name: 'google/vit-base-patch16-224'
+  pretrained: true
+  freeze_parameters: false
+
+hyperparameters:
+  train_batch_size: 128
+  test_batch_size: 128
+  patch_size: 224
+  epochs: 100
+  learning_rate: 0.001
+  target_num_genes: 2000
+  random_seed: 42
+  use_validation: true
+
+logging:
+  use_wandb: true
+  wandb_project: 'spatial_transcriptomics'
+  wandb_name: 'vit-base'

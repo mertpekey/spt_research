@@ -7,16 +7,16 @@ import torch.optim as optim
 
 from src.metrics import Metrics
 
-def train(model, config, train_loader, val_loader, test_loader = None):
+def train(model, config, train_loader, val_loader = None, test_loader = None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'])
+    optimizer = optim.Adam(model.parameters(), lr=config['hyperparameters']['learning_rate'])
 
     best_val_loss = float('inf')
     best_model_weights = None
     
-    for epoch in range(config['epochs']):
+    for epoch in range(config['hyperparameters']['epochs']):
         model.train()
         train_metrics = Metrics()
 
@@ -31,29 +31,35 @@ def train(model, config, train_loader, val_loader, test_loader = None):
             # Update training metrics
             train_metrics.loss += loss.item()
             train_metrics.update(output.detach().cpu().numpy(), proteins.detach().cpu().numpy())
-            break
         
         # Validation
-        val_metrics = evaluate(model, val_loader, criterion, device)
+        if val_loader is not None:
+            val_metrics = evaluate(model, val_loader, criterion, device)
+            val_loss = val_metrics.loss / val_metrics.count
+            # Best model saving
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_weights = copy.deepcopy(model.state_dict())  # Copy the model weights
+                best_model_weights = {k: v.cpu() for k, v in best_model_weights.items()}
 
-        # Best model saving
-        val_loss = val_metrics.loss / val_metrics.count
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model_weights = copy.deepcopy(model.state_dict())  # Copy the model weights
-            best_model_weights = {k: v.cpu() for k, v in best_model_weights.items()}
-
-        # Log training loss and metrics
-        if config['use_wandb']:
-            wandb.log({"epoch": epoch+1}, commit=False)
-            train_metrics.log("train", commit=False)
-            val_metrics.log("val", commit=True)
+            # Log training loss and metrics
+            if config['logging']['use_wandb']:
+                wandb.log({"epoch": epoch+1}, commit=False)
+                train_metrics.log("train", commit=False)
+                val_metrics.log("val", commit=True)
         
-        # Print and log validation metrics
-        print(f"Epoch [{epoch+1}/{config['epochs']}]")
-        train_metrics.print_metrics("train")
-        val_metrics.print_metrics("val")
-        print()
+            # Print and log validation metrics
+            print(f"Epoch [{epoch+1}/{config['hyperparameters']['epochs']}]")
+            train_metrics.print_metrics("train")
+            val_metrics.print_metrics("val")
+            print()
+        else:
+            best_model_weights = copy.deepcopy(model.state_dict())
+            best_model_weights = {k: v.cpu() for k, v in best_model_weights.items()}
+            # Log training loss and metrics
+            if config['logging']['use_wandb']:
+                wandb.log({"epoch": epoch+1}, commit=False)
+                train_metrics.log("train", commit=True)
 
     # Evaluate on Test Set
     if test_loader is not None:
@@ -64,15 +70,15 @@ def train(model, config, train_loader, val_loader, test_loader = None):
     
         test_metrics = evaluate(model, test_loader, criterion, device)
         
-        test_metrics.plot_pearson_heatmap(file_name="test_pearson_heatmap.png", log_wandb=config['use_wandb'])
-        test_metrics.plot_spearman_heatmap(file_name="test_spearman_heatmap.png", log_wandb=config['use_wandb'])
-        test_metrics.plot_rmse_heatmap(file_name="test_rmse_heatmap.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_pearson_heatmap(file_name="test_pearson_heatmap.png", log_wandb=config['logging']['use_wandb'])
+        test_metrics.plot_spearman_heatmap(file_name="test_spearman_heatmap.png", log_wandb=config['logging']['use_wandb'])
+        test_metrics.plot_rmse_heatmap(file_name="test_rmse_heatmap.png", log_wandb=config['logging']['use_wandb'])
 
-        test_metrics.plot_pearson_boxplot(file_name="test_pearson_boxplot.png", log_wandb=config['use_wandb'])
-        test_metrics.plot_spearman_boxplot(file_name="test_spearman_boxplot.png", log_wandb=config['use_wandb'])
-        test_metrics.plot_rmse_boxplot(file_name="test_rmse_boxplot.png", log_wandb=config['use_wandb'])
+        test_metrics.plot_pearson_boxplot(file_name="test_pearson_boxplot.png", log_wandb=config['logging']['use_wandb'])
+        test_metrics.plot_spearman_boxplot(file_name="test_spearman_boxplot.png", log_wandb=config['logging']['use_wandb'])
+        test_metrics.plot_rmse_boxplot(file_name="test_rmse_boxplot.png", log_wandb=config['logging']['use_wandb'])
         
-        if config['use_wandb']:
+        if config['logging']['use_wandb']:
             test_metrics.log("test", commit=True)
         test_metrics.print_metrics("test")
 

@@ -22,9 +22,10 @@ class SpatialDataset(Dataset):
 
 def get_data_loaders(gene_data, protein_data, spot_patches, protein_metadata, config, shuffle=True):
     dataset = SpatialDataset(spot_patches, gene_data, protein_data, protein_metadata)
-    return DataLoader(dataset, batch_size=config['batch_size'], shuffle=shuffle)
+    data_split = 'train' if shuffle else 'test'
+    return DataLoader(dataset, batch_size=config['hyperparameters'][f'{data_split}_batch_size'], shuffle=shuffle)
 
-def load_data(config):
-    adata = sc.read_h5ad(f"data/adatas_{config['sample_id'].split('_')[-1]}.h5ad")
-    pdata = sc.read_h5ad(f"data/pdatas_{config['sample_id'].split('_')[-1]}.h5ad")
+def load_data(config, split):
+    adata = sc.read_h5ad(f"data/adatas_{config[f'{split}_data']['sample_id'].split('_')[-1]}.h5ad")
+    pdata = sc.read_h5ad(f"data/pdatas_{config[f'{split}_data']['sample_id'].split('_')[-1]}.h5ad")
     return adata, pdata
