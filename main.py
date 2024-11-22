@@ -26,6 +26,9 @@ def main(args):
         coords = process_spot_coordinates(adata, config, split)
         spot_patches = extract_spot_patches(img_tensor, coords, config)
         train_data, val_data, test_data = load_all_splits_randomly(adata, pdata, spot_patches, config)
+        train_protein_metadata = pdata.var
+        val_protein_metadata = pdata.var
+        test_protein_metadata = pdata.var
     else:
         for split in ['train', 'test']:
             adata, pdata = load_data(config, split)
@@ -34,13 +37,16 @@ def main(args):
             spot_patches = extract_spot_patches(img_tensor, coords, config)
             if split == 'train':
                 train_data, val_data = load_data_with_split(adata, pdata, spot_patches, config, split)
+                train_protein_metadata = pdata.var
+                val_protein_metadata = pdata.var
             else:
                 test_data = load_data_with_split(adata, pdata, spot_patches, config, split)
+                test_protein_metadata = pdata.var
 
     # Data loaders
-    train_loader = get_data_loaders(*train_data, pdata.var, config, shuffle=True)
-    val_loader = get_data_loaders(*val_data, pdata.var, config, shuffle=False) if val_data is not None else None
-    test_loader = get_data_loaders(*test_data, pdata.var, config, shuffle=False)
+    train_loader = get_data_loaders(*train_data, train_protein_metadata, config, shuffle=True)
+    val_loader = get_data_loaders(*val_data, val_protein_metadata, config, shuffle=False) if val_data is not None else None
+    test_loader = get_data_loaders(*test_data, test_protein_metadata, config, shuffle=False)
 
     # Model
     if config['image_model']['model_type'] == 'resnet':
