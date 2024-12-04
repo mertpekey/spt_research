@@ -36,11 +36,12 @@ def main(args):
             coords = process_spot_coordinates(adata, config, split)
             spot_patches = extract_spot_patches(img_tensor, coords, config)
             if split == 'train':
-                train_data, val_data = load_data_with_split(adata, pdata, spot_patches, config, split)
+                train_data, val_data, top_gene_indices = load_data_with_split(adata, pdata, spot_patches, config, split)
                 train_protein_metadata = pdata.var
                 val_protein_metadata = pdata.var
+                train_gene_info_df = adata.var
             else:
-                test_data = load_data_with_split(adata, pdata, spot_patches, config, split)
+                test_data = load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_indices, train_gene_info_df)
                 test_protein_metadata = pdata.var
 
     # Data loaders
