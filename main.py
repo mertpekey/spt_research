@@ -2,7 +2,7 @@ import yaml
 import wandb
 import argparse
 
-from src.data_preprocessing import load_image, process_spot_coordinates, extract_spot_patches, load_data_with_split, set_random_seed, load_all_splits_randomly
+from src.data_preprocessing import load_image, process_spot_coordinates, extract_spot_patches, load_data_with_split, set_random_seed, load_all_splits_randomly, get_exclude_indices
 from src.dataset import get_data_loaders, load_data
 from src.models.cnn_model import CNN_Model
 from src.models.vit_model import VIT_Model
@@ -30,18 +30,20 @@ def main(args):
         val_protein_metadata = pdata.var
         test_protein_metadata = pdata.var
     else:
+        # Use only the common genes between the two samples
+        exclude_indices = get_exclude_indices(config)
         for split in ['train', 'test']:
             adata, pdata = load_data(config, split)
             img_tensor = load_image(adata, config, split)
             coords = process_spot_coordinates(adata, config, split)
             spot_patches = extract_spot_patches(img_tensor, coords, config)
             if split == 'train':
-                train_data, val_data, top_gene_indices = load_data_with_split(adata, pdata, spot_patches, config, split)
+                train_gene_info_df = adata.var
+                train_data, val_data, top_gene_indices = load_data_with_split(adata, pdata, spot_patches, config, split, exclude_indices=exclude_indices)
                 train_protein_metadata = pdata.var
                 val_protein_metadata = pdata.var
-                train_gene_info_df = adata.var
             else:
-                test_data = load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_indices, train_gene_info_df)
+                test_data = load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_indices=top_gene_indices, train_gene_info_df=train_gene_info_df)
                 test_protein_metadata = pdata.var
 
     # Data loaders

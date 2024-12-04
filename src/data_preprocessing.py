@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import scanpy as sc
 from PIL import Image
 from sklearn.model_selection import train_test_split
 
@@ -53,8 +54,26 @@ def get_transformations(config):
     else:
         return None
 
-def filter_genes_by_variance(gene_data, target_num_genes=5000):
+def get_exclude_indices(config):
+    sample1_var = sc.read_h5ad(f"data/adatas_{config['train_data']['sample_id'].split('_')[-1]}.h5ad").var.index
+    sample2_var = sc.read_h5ad(f"data/adatas_{config['test_data']['sample_id'].split('_')[-1]}.h5ad").var.index
+
+    common_genes = sample1_var.intersection(sample2_var)
+
+    # Find indices in Sample 1 that are not in the common set
+    exclude_indices = [i for i, gene in enumerate(sample1_var) if gene not in common_genes]
+    return torch.tensor(exclude_indices)
+
+def filter_genes_by_variance(gene_data, target_num_genes=5000, exclude_indices=None):
     gene_variances = torch.var(gene_data, dim=0)
+
+    # Create a mask to exclude specific indices
+    if exclude_indices is not None:
+        exclude_mask = torch.zeros_like(gene_variances, dtype=torch.bool)
+        exclude_mask[exclude_indices] = True
+        # Set variance of excluded indices to a very low value
+        gene_variances[exclude_mask] = -float('inf')
+    
     top_gene_indices = torch.topk(gene_variances, target_num_genes).indices
     top_gene_indices = torch.sort(top_gene_indices).values
     return top_gene_indices
@@ -69,7 +88,7 @@ def map_indices_between_datasets(train_var, test_var, top_gene_indices_train):
     
     return torch.tensor(mapped_indices_test)
 
-def load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_indices=None, train_gene_info_df=None):
+def load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_indices=None, train_gene_info_df=None, exclude_indices=None):
     gene_data = torch.tensor(adata.layers['norm'].todense()).float()
     protein_data = torch.tensor(pdata.layers['norm'].todense()).float()
 
@@ -79,7 +98,7 @@ def load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_ind
                 range(gene_data.shape[0]), test_size=0.2, random_state=config['hyperparameters']['random_seed']
             )
             top_gene_indices = filter_genes_by_variance(
-                gene_data[train_indices, :], target_num_genes=config['hyperparameters']['target_num_genes']
+                gene_data[train_indices, :], target_num_genes=config['hyperparameters']['target_num_genes'], exclude_indices=exclude_indices
             )
             return (
                 (gene_data[train_indices, top_gene_indices], protein_data[train_indices], spot_patches[train_indices]),
@@ -88,7 +107,7 @@ def load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_ind
             )
         else:
             top_gene_indices = filter_genes_by_variance(
-                gene_data, target_num_genes=config['hyperparameters']['target_num_genes']
+                gene_data, target_num_genes=config['hyperparameters']['target_num_genes'], exclude_indices=exclude_indices
             )
             return (gene_data[:, top_gene_indices], protein_data, spot_patches), None, top_gene_indices
         
