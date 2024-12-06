@@ -58,7 +58,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="configs/hf_model_config.yaml", help="Path to config file")
+    parser.add_argument("--config_path", type=str, default="configs/debug_config.yaml", help="Path to config file")
     args = parser.parse_args()
     main(args)
     

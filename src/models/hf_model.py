@@ -55,7 +55,8 @@ class HF_Model(nn.Module):
 
     def forward(self, image, gene_data):
         # Process image
-        img_features = self.image_model(pixel_values=image).last_hidden_state.mean(dim=1) # Average pooling
+        img_features = self.image_model(pixel_values=image).pooler_output # Average pooling
+        img_features = img_features.view(img_features.size(0), -1)
         
         # Process gene data
         gene_features = self.gene_fc(gene_data)
