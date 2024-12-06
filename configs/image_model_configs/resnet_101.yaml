@@ -1,0 +1,27 @@
+train_data:
+  sample_id: Spatial_CITEseq_Tonsil1
+  hires_image_key: CytAssist_FFPE_Protein_Expression_Human_Tonsil
+
+test_data:
+  sample_id: Spatial_CITEseq_Tonsil2
+  hires_image_key: CytAssist_FFPE_Protein_Expression_Human_Tonsil_AddOns
+
+image_model:
+  hf_repo_id: 'microsoft/resnet-101'
+  pretrained: true
+  freeze_parameters: false
+
+hyperparameters:
+  train_batch_size: 128
+  test_batch_size: 128
+  patch_size: 256
+  epochs: 100
+  learning_rate: 0.001
+  target_num_genes: 2000
+  random_seed: 42
+  use_validation: false
+
+logging:
+  use_wandb: true
+  wandb_project: 'spatial_transcriptomics_hf'
+  wandb_name: 'resnet-101'

@@ -17,10 +17,7 @@ def set_random_seed(seed):
 def load_image(adata, config, split):
     img = adata.uns['spatial'][config[f'{split}_data']['hires_image_key']]['images']['hires']
     img = (img * 255).astype(np.uint8) if img.dtype == np.float32 else img
-    img = Image.fromarray(img)
-    transform = transforms.ToTensor()
-    img_tensor = transform(img)
-    return img_tensor
+    return img
 
 def process_spot_coordinates(adata, config, split):
     scale_factor = adata.uns['spatial'][config[f'{split}_data']['hires_image_key']]['scalefactors']['tissue_hires_scalef']
@@ -28,31 +25,19 @@ def process_spot_coordinates(adata, config, split):
     return coords.astype(int)
 
 def extract_spot_patches(img_tensor, coords, config):
-    process_fn = get_transformations(config)
     patch_size = config['hyperparameters']['patch_size']
     half_patch = patch_size // 2
     patches = []
     for x, y in coords:
         x, y = int(x), int(y)
         patch = img_tensor[
+            max(0, y-half_patch):min(y+half_patch, img_tensor.shape[0]),
+            max(0, x-half_patch):min(x+half_patch, img_tensor.shape[1]),
             :,
-            max(0, y-half_patch):min(y+half_patch, img_tensor.shape[1]),
-            max(0, x-half_patch):min(x+half_patch, img_tensor.shape[2])
         ]
-        if patch.shape[1] == patch_size and patch.shape[2] == patch_size:
-            patch = process_fn(patch) if process_fn is not None else patch
+        if patch.shape[0] == patch_size and patch.shape[1] == patch_size:
             patches.append(patch)
-    return torch.stack(patches)
-
-def get_transformations(config):
-    if config['image_model']['model_type'] == 'vit':
-        return transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Resize((224, 224)),  # ViT requires 224x224 patches
-            transforms.ToTensor()
-        ])
-    else:
-        return None
+    return np.stack(patches)
 
 def get_exclude_indices(config):
     sample1_var = sc.read_h5ad(f"data/adatas_{config['train_data']['sample_id'].split('_')[-1]}.h5ad").var.index
@@ -100,9 +85,13 @@ def load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_ind
             top_gene_indices = filter_genes_by_variance(
                 gene_data[train_indices, :], target_num_genes=config['hyperparameters']['target_num_genes'], exclude_indices=exclude_indices
             )
+
+            train_gene_data = gene_data[train_indices, :]
+            val_gene_data = gene_data[val_indices, :]
+
             return (
-                (gene_data[train_indices, top_gene_indices], protein_data[train_indices], spot_patches[train_indices]),
-                (gene_data[val_indices, top_gene_indices], protein_data[val_indices], spot_patches[val_indices]),
+                (train_gene_data[:, top_gene_indices], protein_data[train_indices], spot_patches[train_indices]),
+                (val_gene_data[:, top_gene_indices], protein_data[val_indices], spot_patches[val_indices]),
                 top_gene_indices
             )
         else:
