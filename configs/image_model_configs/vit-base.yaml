@@ -10,6 +10,7 @@ image_model:
   hf_repo_id: 'google/vit-base-patch16-224-in21k'
   pretrained: true
   freeze_parameters: false
+  use_predictions_as_features: false
 
 hyperparameters:
   train_batch_size: 128
