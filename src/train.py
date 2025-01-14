@@ -20,10 +20,12 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         model.train()
         train_metrics = Metrics()
 
-        for img, genes, proteins in train_loader:
-            img, genes, proteins = img.to(device), genes.to(device), proteins.to(device)
+        for img, genes, proteins, coords in train_loader:
+            img, genes, proteins, coords = img.to(device), genes.to(device), proteins.to(device), coords.to(device)
+            main_image_size = (config['train_image_width'], config['train_image_height'])
+            
             optimizer.zero_grad()
-            output = model(img, genes)
+            output = model(img, genes, coords, main_image_size)
             loss = criterion(output, proteins)
             loss.backward()
             optimizer.step()
@@ -34,7 +36,9 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         
         # Validation
         if val_loader is not None:
-            val_metrics = evaluate(model, val_loader, criterion, device)
+            main_image_size = (config['train_image_width'], config['train_image_height'])
+
+            val_metrics = evaluate(model, val_loader, criterion, device, main_image_size)
             val_loss = val_metrics.loss / val_metrics.count
             # Best model saving
             if val_loss < best_val_loss:
@@ -67,8 +71,9 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         model.load_state_dict(best_model_weights)
         model.to(device)
         print("Best model loaded.")
-    
-        test_metrics = evaluate(model, test_loader, criterion, device, train_loader.dataset.protein_metadata)
+
+        main_image_size = (config['test_image_width'], config['test_image_height'])
+        test_metrics = evaluate(model, test_loader, criterion, device, main_image_size, train_loader.dataset.protein_metadata)
         
         test_metrics.plot_pearson_heatmap(file_name="test_pearson_heatmap.png", log_wandb=config['logging']['use_wandb'])
         test_metrics.plot_spearman_heatmap(file_name="test_spearman_heatmap.png", log_wandb=config['logging']['use_wandb'])
@@ -82,21 +87,20 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
             test_metrics.log("test", commit=True)
         test_metrics.print_metrics("test")
 
-
-def evaluate(model, data_loader, criterion, device, train_protein_metadata = None):
+def evaluate(model, data_loader, criterion, device, main_image_size, train_protein_metadata = None):
     model.eval()
     eval_metrics = Metrics()
     eval_metrics.protein_metadata = data_loader.dataset.protein_metadata
     eval_metrics.set_seen_unseen_indices(train_protein_metadata)
 
     with torch.no_grad():
-        for img, genes, proteins in data_loader:
-            img, genes, proteins = img.to(device), genes.to(device), proteins.to(device)
+        for img, genes, proteins, coords in data_loader:
+            img, genes, proteins, coords = img.to(device), genes.to(device), proteins.to(device), coords.to(device)
             
             # Only get the seen proteins (for now)
             proteins = proteins[:, eval_metrics.seen_indices]
 
-            output = model(img, genes)
+            output = model(img, genes, coords, main_image_size)  # Pass coordinates to model
             loss = criterion(output, proteins)
 
             # Update evaluation metrics
