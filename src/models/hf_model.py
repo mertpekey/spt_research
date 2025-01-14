@@ -1,13 +1,17 @@
 from transformers import AutoImageProcessor, AutoModel
 import torch
 import torch.nn as nn
+from .uni_model import UNIModel
 
 class HF_Model(nn.Module):
     def __init__(self, num_genes, num_proteins, config):
         super(HF_Model, self).__init__()
 
-        self.processor = AutoImageProcessor.from_pretrained(config['image_model']['hf_repo_id'])
-        self.image_model, self.out_features = self._select_backbone(config['image_model']['hf_repo_id'], config['image_model']['pretrained'])
+        # Initialize image model and processor
+        self.image_model, self.processor, self.out_features = self._select_backbone(
+            config['image_model']['hf_repo_id'], 
+            config['image_model']['pretrained']
+        )
         
         # Freeze parameters if specified
         if config['image_model']['freeze_parameters']:
@@ -28,39 +32,56 @@ class HF_Model(nn.Module):
         )
 
     def _select_backbone(self, model_name, pretrained):
-        # Load Hugging Face model
-        if pretrained:
-            model = AutoModel.from_pretrained(model_name)
-        else:
-            model = AutoModel.from_config(AutoModel.from_pretrained(model_name).config)
-
-        # Determine output feature size
-        if hasattr(model, "config") and hasattr(model.config, "hidden_size"):
+        """
+        Select and initialize the backbone model
+        
+        Args:
+            model_name: Name/path of the model to use
+            pretrained: Whether to use pretrained weights
+            
+        Returns:
+            model: The initialized model
+            processor: Image processor/transforms
+            out_features: Number of output features
+        """
+        if model_name.lower() == "uni":
+            model = UNIModel(pretrained=pretrained)
+            processor = model.processor  # UNI model's transform
             out_features = model.config.hidden_size
-        elif hasattr(model, "config") and hasattr(model.config, "hidden_sizes"):
-            out_features = model.config.hidden_sizes[-1]
-        elif hasattr(model, "classifier") and hasattr(model.classifier, "out_features"):
-            out_features = model.classifier.out_features
         else:
-            raise ValueError(f"Cannot determine output features for model: {model_name}")
+            # Standard HuggingFace model initialization
+            processor = AutoImageProcessor.from_pretrained(model_name)
+            if pretrained:
+                model = AutoModel.from_pretrained(model_name)
+            else:
+                model = AutoModel.from_config(AutoModel.from_pretrained(model_name).config)
 
-        # Replace classification layers with Identity if they exist
-        # TODO: Burayi kontrol et
-        if hasattr(model, "classifier"):
-            model.classifier = nn.Identity()
-        elif hasattr(model, "fc"):
-            model.fc = nn.Identity()
+            # Determine output feature size
+            if hasattr(model, "config") and hasattr(model.config, "hidden_size"):
+                out_features = model.config.hidden_size
+            elif hasattr(model, "config") and hasattr(model.config, "hidden_sizes"):
+                out_features = model.config.hidden_sizes[-1]
+            elif hasattr(model, "classifier") and hasattr(model.classifier, "out_features"):
+                out_features = model.classifier.out_features
+            else:
+                raise ValueError(f"Cannot determine output features for model: {model_name}")
 
-        return model, out_features
+            # Replace classification layers with Identity if they exist
+            if hasattr(model, "classifier"):
+                model.classifier = nn.Identity()
+            elif hasattr(model, "fc"):
+                model.fc = nn.Identity()
+
+        return model, processor, out_features
 
     def forward(self, image, gene_data):
         # Process image
-        img_features = self.image_model(pixel_values=image).pooler_output # Average pooling
+        img_features = self.image_model(pixel_values=image).pooler_output
         img_features = img_features.view(img_features.size(0), -1)
         
         # Process gene data
         gene_features = self.gene_fc(gene_data)
 
-        # Combine features and pass through fv layers
+        # Combine features and pass through fc layers
         combined = torch.cat((img_features, gene_features), dim=1)
         return self.fc(combined)

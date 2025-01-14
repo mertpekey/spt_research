@@ -1,8 +1,5 @@
-import os
 import scanpy as sc
-from muon import prot as pt
-from anndata import AnnData
-
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 class SpatialDataset(Dataset):
@@ -27,6 +24,14 @@ class SpatialDataset(Dataset):
         
         if self.processor:
             spot_patch = self.processor(images=spot_patch, return_tensors="pt")["pixel_values"].squeeze(0)
+            # Check processor type by its interface/behavior
+            if hasattr(self.processor, '__call__') and hasattr(self.processor, 'transforms'):
+                # Torchvision/TIMM style transforms (like UNI model)
+                spot_patch = Image.fromarray(spot_patch)
+                spot_patch = self.processor(spot_patch)
+            else:
+                # HuggingFace style processor
+                spot_patch = self.processor(images=spot_patch, return_tensors="pt")["pixel_values"].squeeze(0)
         
         return spot_patch, gene_data, protein_data
 
