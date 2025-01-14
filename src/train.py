@@ -77,6 +77,8 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         test_metrics.plot_pearson_boxplot(file_name="test_pearson_boxplot.png", log_wandb=config['logging']['use_wandb'])
         test_metrics.plot_spearman_boxplot(file_name="test_spearman_boxplot.png", log_wandb=config['logging']['use_wandb'])
         test_metrics.plot_rmse_boxplot(file_name="test_rmse_boxplot.png", log_wandb=config['logging']['use_wandb'])
+
+        test_metrics.plot_pearson_boxplot_order(file_name="test_pearson_boxplot_v2.png", log_wandb=config['logging']['use_wandb'])
         
         if config['logging']['use_wandb']:
             test_metrics.log("test", commit=True)

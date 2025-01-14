@@ -227,3 +227,68 @@ class Metrics:
         # Optionally log to WandB
         if log_wandb:
             wandb.log({f"{title} Boxplot": wandb.Image(f"supplementary/{file_name}")}, commit=False)
+
+
+    def plot_pearson_boxplot_order(self, file_name="pearson_boxplot.png", log_wandb=True):
+        self._plot_boxplot_with_xtick_order(self.pearson_values, "Pearson Correlation", file_name, log_wandb, high_good=True)
+        
+    def _plot_boxplot_with_xtick_order(self, values, title, file_name, log_wandb, high_good=True):
+        """
+        Plots a boxplot with a specified order for xticks.
+    
+        Parameters:
+        - values: list of arrays containing values to plot
+        - title: title of the plot
+        - file_name: name of the file to save the plot
+        - xtick_order: list of gene names specifying the order of xticks
+        - log_wandb: whether to log the plot to WandB
+        - high_good: sort by high values if True, low values otherwise
+        """
+        values_np = np.vstack(values)  # Shape: (num_spots, num_proteins)
+        
+        pdata_gene_ids = self.protein_metadata['gene_ids']
+    
+        xtick_order = ['EPCAM', 
+                       'CD14', 'PECAM1', 'VIM', 'ACTA2', 'CD27', 'BCL2', 'CCR7', 'CD8A', 'CD3E', 'PTPRC_2', 'CD4', 'FCGR3A', 'KRT5', 'CEACAM8', 'CD163', 'SDC1', 'CD68', 'CD274',
+                       'HLA-DRA', 'CD40', 'PTPRC_1', 'ITGAX', 'CR2', 'PDCD1', 'CXCR5', 'PAX5', 'PCNA', 'MS4A1', 'CD19', 'ITGAM'
+                      ]
+        
+        # Reorder values according to the specified xtick order
+        order_indices = [pdata_gene_ids.tolist().index(name) for name in xtick_order if name in pdata_gene_ids.tolist()]
+        reordered_values_np = values_np[:, order_indices]
+        reordered_gene_ids = pdata_gene_ids.iloc[order_indices]
+        
+        # Identify seen and unseen in the reordered order
+        seen_mask = np.isin(order_indices, self.seen_indices) if self.seen_indices is not None else np.zeros_like(order_indices, dtype=bool)
+        
+        num_proteins = reordered_values_np.shape[1]
+        fig_width = max(12, num_proteins / 4)
+        plt.figure(figsize=(fig_width, 6))
+        
+        # Plot boxplot
+        cmap = plt.cm.coolwarm
+        colors = [cmap(i) for i in np.linspace(0, 1, num_proteins)]
+        sns.boxplot(
+            data=[reordered_values_np[:, i] for i in range(num_proteins)],  # Data per protein
+            color='skyblue',
+            showfliers=False
+        )
+        
+        plt.xticks(
+            ticks=np.arange(num_proteins),
+            labels=reordered_gene_ids,
+            rotation=90,
+            ha="center",
+            fontsize=8
+        )
+        ax = plt.gca()
+        for tick, seen in zip(ax.get_xticklabels(), seen_mask):
+            tick.set_color("black" if seen else "red")  # Black for seen, red for unseen
+        
+        plt.xlabel('Protein Gene ID', fontsize=10)
+        plt.ylabel(f'{title} Across Spots', fontsize=10)
+        # plt.title(f'{title} Per Protein', fontsize=12)
+        
+        # Save the plot to file
+        plt.savefig(f"supplementary/pexp_ordered_box_plot.png", format='png', dpi=300, bbox_inches='tight')
+        plt.close()
