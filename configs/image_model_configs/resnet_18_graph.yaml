@@ -13,23 +13,23 @@ image_model:
   use_predictions_as_features: false
 
 model:
-  graph_layer: 'GAT' # GCN, GAT
+  graph_layer: 'GCN' # GCN, GAT
   gat_heads: 4
-  fusion_method: 'gated' # concat, gated
+  fusion_method: 'concat' # concat, gated
   gene_hidden_dim: 256
 
 hyperparameters:
-  train_batch_size: 2
-  test_batch_size: 2
-  patch_size: 16
-  epochs: 1
+  train_batch_size: 256
+  test_batch_size: 256
+  patch_size: 256
+  epochs: 100
   learning_rate: 0.001
-  target_num_genes: 50
+  target_num_genes: 2000
   random_seed: 42
   use_validation: false
   graph_k: 5
 
 logging:
-  use_wandb: false
+  use_wandb: true
   wandb_project: 'spatial_transcriptomics_hf'
-  wandb_name: 'resnet-18'
+  wandb_name: 'resnet-18-graph'

@@ -6,9 +6,16 @@ import torch.nn as nn
 import torch.optim as optim
 
 from src.metrics import Metrics
+from src.graph_codes import build_edge_index, extract_subgraph
+
+from torch_geometric.utils import add_self_loops
 
 def train(model, config, train_loader, val_loader = None, test_loader = None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    global_edge_index = build_edge_index(train_loader.dataset.coords, k=config['hyperparameters']['graph_k']).to(device)
+    num_nodes = len(train_loader.dataset)
+
     model.to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config['hyperparameters']['learning_rate'])
@@ -20,10 +27,15 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         model.train()
         train_metrics = Metrics()
 
-        for img, genes, proteins in train_loader:
+        for img, genes, proteins, coords, indices in train_loader:
             img, genes, proteins = img.to(device), genes.to(device), proteins.to(device)
+
+            batch_indices = indices.to(device)
+            batch_edge_index = extract_subgraph(global_edge_index, batch_indices, num_nodes)
+            batch_edge_index, _ = add_self_loops(batch_edge_index, num_nodes=len(genes))
+
             optimizer.zero_grad()
-            output = model(img, genes)
+            output = model(img, genes, batch_edge_index)
             loss = criterion(output, proteins)
             loss.backward()
             optimizer.step()
@@ -34,7 +46,7 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         
         # Validation
         if val_loader is not None:
-            val_metrics = evaluate(model, val_loader, criterion, device)
+            val_metrics = evaluate(model, val_loader, criterion, device, graph_k=config['hyperparameters']['graph_k'])
             val_loss = val_metrics.loss / val_metrics.count
             # Best model saving
             if val_loss < best_val_loss:
@@ -68,7 +80,7 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         model.to(device)
         print("Best model loaded.")
     
-        test_metrics = evaluate(model, test_loader, criterion, device, train_loader.dataset.protein_metadata)
+        test_metrics = evaluate(model, test_loader, criterion, device, train_loader.dataset.protein_metadata, graph_k=config['hyperparameters']['graph_k'])
         
         test_metrics.plot_pearson_heatmap(file_name="test_pearson_heatmap.png", log_wandb=config['logging']['use_wandb'])
         test_metrics.plot_spearman_heatmap(file_name="test_spearman_heatmap.png", log_wandb=config['logging']['use_wandb'])
@@ -85,20 +97,28 @@ def train(model, config, train_loader, val_loader = None, test_loader = None):
         test_metrics.print_metrics("test")
 
 
-def evaluate(model, data_loader, criterion, device, train_protein_metadata = None):
+def evaluate(model, data_loader, criterion, device, train_protein_metadata = None, graph_k=5):
     model.eval()
     eval_metrics = Metrics()
     eval_metrics.protein_metadata = data_loader.dataset.protein_metadata
     eval_metrics.set_seen_unseen_indices(train_protein_metadata)
 
+    # Build edge_index for the evaluation dataset
+    global_edge_index = build_edge_index(data_loader.dataset.coords, k=graph_k).to(device)
+    num_nodes = len(data_loader.dataset)
+
     with torch.no_grad():
-        for img, genes, proteins in data_loader:
+        for img, genes, proteins, coords, indices in data_loader:
             img, genes, proteins = img.to(device), genes.to(device), proteins.to(device)
+
+            batch_indices = indices.to(device)
+            batch_edge_index = extract_subgraph(global_edge_index, batch_indices, num_nodes)
+            batch_edge_index, _ = add_self_loops(batch_edge_index, num_nodes=len(genes))
             
             # Only get the seen proteins (for now)
             proteins = proteins[:, eval_metrics.seen_indices]
 
-            output = model(img, genes)
+            output = model(img, genes, batch_edge_index)
             loss = criterion(output, proteins)
 
             # Update evaluation metrics

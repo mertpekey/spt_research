@@ -6,6 +6,7 @@ from src.data_preprocessing import load_image, process_spot_coordinates, extract
 from src.dataset import get_data_loaders, load_data
 from src.models.hf_model import HF_Model
 from src.models.two_stage_model import TwoStageModel
+from src.models.graph_model import HF_ModelGraph
 from src.train import train
 
 def main(args):
@@ -25,7 +26,7 @@ def main(args):
         img_tensor = load_image(adata, config, split)
         coords = process_spot_coordinates(adata, config, split)
         spot_patches = extract_spot_patches(img_tensor, coords, config)
-        train_data, val_data, test_data = load_all_splits_randomly(adata, pdata, spot_patches, config)
+        train_data, val_data, test_data = load_all_splits_randomly(adata, pdata, spot_patches, coords, config)
         train_protein_metadata = pdata.var
         val_protein_metadata = pdata.var
         test_protein_metadata = pdata.var
@@ -39,22 +40,17 @@ def main(args):
             spot_patches = extract_spot_patches(img_tensor, coords, config)
             if split == 'train':
                 train_gene_info_df = adata.var
-                train_data, val_data, top_gene_indices = load_data_with_split(adata, pdata, spot_patches, config, split, exclude_indices=exclude_indices)
+                train_data, val_data, top_gene_indices = load_data_with_split(adata, pdata, spot_patches, coords, config, split, exclude_indices=exclude_indices)
                 train_protein_metadata = pdata.var
                 val_protein_metadata = pdata.var
             else:
-                test_data = load_data_with_split(adata, pdata, spot_patches, config, split, top_gene_indices=top_gene_indices, train_gene_info_df=train_gene_info_df)
+                test_data = load_data_with_split(adata, pdata, spot_patches, coords, config, split, top_gene_indices=top_gene_indices, train_gene_info_df=train_gene_info_df)
                 test_protein_metadata = pdata.var
 
     # Model
-    if config['image_model'].get('use_predictions_as_features', False):
-        model = TwoStageModel(num_genes=train_data[0].shape[1], 
-                             num_proteins=train_data[1].shape[1], 
-                             config=config)
-    else:
-        model = HF_Model(num_genes=train_data[0].shape[1], 
-                        num_proteins=train_data[1].shape[1], 
-                        config=config)
+    model = HF_ModelGraph(num_genes=train_data[0].shape[1], 
+                            num_proteins=train_data[1].shape[1], 
+                            config=config)
 
     # Data loaders
     train_loader = get_data_loaders(*train_data, model.processor, train_protein_metadata, config, shuffle=True)
