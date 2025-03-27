@@ -13,8 +13,8 @@ image_model:
   use_predictions_as_features: false
 
 hyperparameters:
-  train_batch_size: 128
-  test_batch_size: 128
+  train_batch_size: 64
+  test_batch_size: 64
   patch_size: 256
   epochs: 100
   learning_rate: 0.001
