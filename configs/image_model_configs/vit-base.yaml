@@ -11,6 +11,7 @@ image_model:
   pretrained: true
   freeze_parameters: false
   use_predictions_as_features: false
+  output_attentions: false
 
 hyperparameters:
   train_batch_size: 128
@@ -26,3 +27,6 @@ logging:
   use_wandb: true
   wandb_project: 'spatial_transcriptomics_hf'
   wandb_name: 'vit-base-16-in21k'
+  save_checkpoints: true
+  resume_from_checkpoint: false
+  checkpoint_dir: 'checkpoints'

@@ -6,6 +6,9 @@ from .uni_model import UNIModel
 class HF_Model(nn.Module):
     def __init__(self, num_genes, num_proteins, config):
         super(HF_Model, self).__init__()
+        
+        # Save config for later use
+        self.config = config
 
         # Initialize image model and processor
         self.image_model, self.processor, self.out_features = self._select_backbone(
@@ -51,10 +54,16 @@ class HF_Model(nn.Module):
         else:
             # Standard HuggingFace model initialization
             processor = AutoImageProcessor.from_pretrained(model_name)
+            
+            # Configure model based on type and attention settings
+            config_kwargs = {}
+            if "vit" in model_name.lower() and self.config['image_model'].get('output_attentions', False):
+                config_kwargs["output_attentions"] = True
+            
             if pretrained:
-                model = AutoModel.from_pretrained(model_name)
+                model = AutoModel.from_pretrained(model_name, **config_kwargs)
             else:
-                model = AutoModel.from_config(AutoModel.from_pretrained(model_name).config)
+                model = AutoModel.from_config(AutoModel.from_pretrained(model_name).config, **config_kwargs)
 
             # Determine output feature size
             if hasattr(model, "config") and hasattr(model.config, "hidden_size"):
@@ -76,7 +85,17 @@ class HF_Model(nn.Module):
 
     def forward(self, image, gene_data):
         # Process image
-        img_features = self.image_model(pixel_values=image).pooler_output
+        if "vit" in self.config['image_model'].get('hf_repo_id', '').lower() and self.config['image_model'].get('output_attentions', False):
+            # For ViT models that need attention output
+            img_output = self.image_model(pixel_values=image, output_attentions=True)
+            img_features = img_output.pooler_output
+            attentions = img_output.attentions
+        else:
+            # Standard forward pass for other models
+            img_output = self.image_model(pixel_values=image)
+            img_features = img_output.pooler_output
+            attentions = None
+            
         img_features = img_features.view(img_features.size(0), -1)
         
         # Process gene data
@@ -84,4 +103,10 @@ class HF_Model(nn.Module):
 
         # Combine features and pass through fc layers
         combined = torch.cat((img_features, gene_features), dim=1)
-        return self.fc(combined)
+        output = self.fc(combined)
+        
+        # Return output and attentions (if applicable)
+        if attentions is not None:
+            return output, attentions
+        else:
+            return output

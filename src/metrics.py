@@ -1,4 +1,6 @@
 import wandb
+import os
+import pandas as pd
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -25,20 +27,28 @@ class Metrics:
         self.seen_metrics, self.seen_indices = None, None
         self.unseen_metrics, self.unseen_indices = None, None
 
-    def update(self, output, target):
+        # --- Added: Spot Metric Reset ---
+        self.spot_coords = []
+        self.spot_pearson_values = []
+        self.spot_spearman_values = []
+        self.spot_mae_values = []
+        self.spot_rmse_values = []
+        # --- End Added ---
+
+    def update(self, output, target, coords):
         num_proteins = target.shape[1]
         
-        output = output.flatten()
-        target = target.flatten()
-        self.rmse += root_mean_squared_error(target, output)
-        self.mae += mean_absolute_error(target, output)
-        self.pearson_corr += pearsonr(target, output)[0]
-        self.spearman_corr += spearmanr(target, output)[0]
+        output_flat = output.flatten()
+        target_flat = target.flatten()
+        self.rmse += root_mean_squared_error(target_flat, output_flat)
+        self.mae += mean_absolute_error(target_flat, output_flat)
+        self.pearson_corr += pearsonr(target_flat, output_flat)[0]
+        self.spearman_corr += spearmanr(target_flat, output_flat)[0]
         self.count += 1
 
         # Calculate per-protein Pearson and Spearman correlations and errors across spots
-        output_matrix = output.reshape(-1, num_proteins)
-        target_matrix = target.reshape(-1, num_proteins)
+        output_matrix = output_flat.reshape(-1, num_proteins)
+        target_matrix = target_flat.reshape(-1, num_proteins)
 
         rmse_spots = np.sqrt((output_matrix - target_matrix) ** 2)
         self.errors.append(rmse_spots)
@@ -50,6 +60,39 @@ class Metrics:
         self.spearman_values.append(per_protein_spearman)
         # If test data contains unseen proteins, split the metrics into seen and unseen
         # self.update_seen_unseen(output_matrix, target_matrix)
+        
+        # --- Added: Spot Metric Calculation ---
+        # Ensure coords is numpy array on CPU
+        coords_np = coords if isinstance(coords, np.ndarray) else coords.cpu().numpy()
+        # Use output_matrix/target_matrix calculated above by original code
+        batch_size = output_matrix.shape[0]
+
+        # Check if batch_size matches coords length
+        if batch_size != coords_np.shape[0]:
+             print(f"Warning: Mismatch between batch size ({batch_size}) and coords length ({coords_np.shape[0]}) in Metrics.update. Skipping spot metrics for this batch.")
+        else:
+            self.spot_coords.append(coords_np) # Store coordinates for this batch
+            for i in range(batch_size): # Iterate through spots in the batch
+                spot_out = output_matrix[i, :]
+                spot_tgt = target_matrix[i, :]
+
+                # Calculate metrics for this spot across all proteins
+                try:
+                    p_corr_spot, _ = pearsonr(spot_out, spot_tgt)
+                    self.spot_pearson_values.append(p_corr_spot)
+                except ValueError:
+                    self.spot_pearson_values.append(np.nan)
+                try:
+                    s_corr_spot, _ = spearmanr(spot_out, spot_tgt)
+                    self.spot_spearman_values.append(s_corr_spot)
+                except ValueError:
+                    self.spot_spearman_values.append(np.nan)
+
+                mae_spot = mean_absolute_error(spot_tgt, spot_out)
+                self.spot_mae_values.append(mae_spot)
+                rmse_spot = root_mean_squared_error(spot_tgt, spot_out)
+                self.spot_rmse_values.append(rmse_spot)
+        # --- End Added Spot Metrics ---
 
     def compute(self):
         return {
@@ -292,3 +335,54 @@ class Metrics:
         # Save the plot to file
         plt.savefig(f"supplementary/pexp_ordered_box_plot.png", format='png', dpi=300, bbox_inches='tight')
         plt.close()
+
+    # --- Added: Save Spot Metrics Method --- 
+    def save_spot_metrics_to_csv(self, file_path="supplementary/spot_metrics.csv"):
+        """Saves the calculated per-spot metrics to a CSV file."""
+        if not self.spot_coords or not self.spot_pearson_values:
+            print("Warning: No spot-level metrics collected to save.")
+            return
+
+        try:
+            # Concatenate data from all batches
+            all_coords = np.vstack(self.spot_coords)
+            all_pearson = np.array(self.spot_pearson_values)
+            all_spearman = np.array(self.spot_spearman_values)
+            all_mae = np.array(self.spot_mae_values)
+            all_rmse = np.array(self.spot_rmse_values)
+
+            # Ensure all arrays have the same length (number of spots)
+            n_spots = all_coords.shape[0]
+            if not (len(all_pearson) == n_spots and len(all_spearman) == n_spots and \
+                    len(all_mae) == n_spots and len(all_rmse) == n_spots):
+                print(f"Warning: Mismatch in collected spot metric lengths. Expected {n_spots}, but got "
+                      f"Pearson:{len(all_pearson)}, Spearman:{len(all_spearman)}, "
+                      f"MAE:{len(all_mae)}, RMSE:{len(all_rmse)}. Cannot save CSV.")
+                # Attempt to reconcile lengths if possible and meaningful, or return.
+                # For now, just return to prevent saving potentially corrupted data.
+                return 
+
+            # Create DataFrame
+            df = pd.DataFrame({
+                'x': all_coords[:, 0],
+                'y': all_coords[:, 1],
+                'pearson': all_pearson,
+                'spearman': all_spearman,
+                'mae': all_mae,
+                'rmse': all_rmse
+            })
+
+            # Ensure supplementary directory exists
+            output_dir = os.path.dirname(file_path)
+            if output_dir: # Ensure directory is not empty (e.g., saving in root)
+                os.makedirs(output_dir, exist_ok=True)
+
+            # Save to CSV
+            df.to_csv(file_path, index=False)
+            print(f"Spot-level metrics saved to {file_path}")
+
+        except Exception as e:
+            print(f"Error saving spot metrics to CSV: {e}")
+            # Consider more specific error handling or logging
+            pass # Keep pass as requested
+    # --- End Added ---

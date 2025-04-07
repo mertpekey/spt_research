@@ -49,6 +49,9 @@ class HF_ModelGraph(nn.Module):
     def __init__(self, num_genes, num_proteins, config):
         super(HF_ModelGraph, self).__init__()
         
+        # Save config for later use
+        self.config = config
+        
         # Initialize image model and processor
         self.image_model, self.processor, self.out_features = self._select_backbone(
             config['image_model']['hf_repo_id'], 
@@ -106,16 +109,36 @@ class HF_ModelGraph(nn.Module):
         )
     
     def _select_backbone(self, model_name, pretrained):
+        """
+        Select and initialize the backbone model
+        
+        Args:
+            model_name: Name/path of the model to use
+            pretrained: Whether to use pretrained weights
+            
+        Returns:
+            model: The initialized model
+            processor: Image processor/transforms
+            out_features: Number of output features
+        """
         if model_name.lower() == "uni":
             model = UNIModel(pretrained=pretrained)
-            processor = model.processor
+            processor = model.processor  # UNI model's transform
             out_features = model.config.hidden_size
         else:
             processor = AutoImageProcessor.from_pretrained(model_name)
+            
+            # Configure model based on type and attention settings
+            config_kwargs = {}
+            if "vit" in model_name.lower() and self.config['image_model'].get('output_attentions', False):
+                config_kwargs["output_attentions"] = True
+            
             if pretrained:
-                model = AutoModel.from_pretrained(model_name)
+                model = AutoModel.from_pretrained(model_name, **config_kwargs)
             else:
-                model = AutoModel.from_config(AutoModel.from_pretrained(model_name).config)
+                model = AutoModel.from_config(AutoModel.from_pretrained(model_name).config, **config_kwargs)
+
+            # Determine output feature size
             if hasattr(model, "config") and hasattr(model.config, "hidden_size"):
                 out_features = model.config.hidden_size
             elif hasattr(model, "config") and hasattr(model.config, "hidden_sizes"):
@@ -129,6 +152,7 @@ class HF_ModelGraph(nn.Module):
                 model.classifier = nn.Identity()
             elif hasattr(model, "fc"):
                 model.fc = nn.Identity()
+
         return model, processor, out_features
 
     def forward(self, image, gene_data, edge_index):
@@ -139,7 +163,15 @@ class HF_ModelGraph(nn.Module):
             edge_index: Graph connectivity (PyTorch Geometric edge_index) of shape (2, num_edges)
         """
         # Process image data through the backbone
-        img_output = self.image_model(pixel_values=image)
+        if "vit" in self.config['image_model'].get('hf_repo_id', '').lower() and self.config['image_model'].get('output_attentions', False):
+            # For ViT models that need attention output
+            img_output = self.image_model(pixel_values=image, output_attentions=True)
+            attentions = img_output.attentions
+        else:
+            # Standard forward pass
+            img_output = self.image_model(pixel_values=image)
+            attentions = None
+            
         if hasattr(img_output, "pooler_output") and img_output.pooler_output is not None:
             img_features = img_output.pooler_output
         else:
@@ -162,4 +194,9 @@ class HF_ModelGraph(nn.Module):
         
         # Final prediction
         out = self.fc(gcn_features)
-        return out
+        
+        # Return output and attentions (if applicable)
+        if attentions is not None:
+            return out, attentions
+        else:
+            return out

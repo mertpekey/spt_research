@@ -8,6 +8,7 @@ from src.models.hf_model import HF_Model
 from src.models.two_stage_model import TwoStageModel
 from src.models.graph_model import HF_ModelGraph
 from src.train import train
+from src.test import test_model
 
 def main(args):
     # Load config
@@ -18,7 +19,9 @@ def main(args):
     set_random_seed(config['hyperparameters']['random_seed'])
 
     if config['logging']['use_wandb']:
-        wandb.init(project=config['logging']['wandb_project'], name=config['logging']['wandb_name'], config=config)
+        wandb.init(project=config['logging']['wandb_project'], 
+                  name=f"{config['logging']['wandb_name']}_test" if args.test else config['logging']['wandb_name'], 
+                  config=config)
 
     # Load data
     if config['train_data']['sample_id'] == config['test_data']['sample_id']:
@@ -46,23 +49,39 @@ def main(args):
             else:
                 test_data = load_data_with_split(adata, pdata, spot_patches, coords, config, split, top_gene_indices=top_gene_indices, train_gene_info_df=train_gene_info_df)
                 test_protein_metadata = pdata.var
+                if config['image_model'].get('output_attentions', False):
+                    import os
+                    from PIL import Image
+                    os.makedirs("supplementary/temp", exist_ok=True)
+
+                    temp_img_path = os.path.join("supplementary/temp", f"hires_{config['test_data']['sample_id']}.png")
+                    Image.fromarray(img_tensor).save(temp_img_path)
 
     # Model
     model = HF_ModelGraph(num_genes=train_data[0].shape[1], 
-                            num_proteins=train_data[1].shape[1], 
-                            config=config)
+                         num_proteins=train_data[1].shape[1], 
+                         config=config)
 
     # Data loaders
     train_loader = get_data_loaders(*train_data, model.processor, train_protein_metadata, config, shuffle=True)
     val_loader = get_data_loaders(*val_data, model.processor, val_protein_metadata, config, shuffle=False) if val_data is not None else None
     test_loader = get_data_loaders(*test_data, model.processor, test_protein_metadata, config, shuffle=False)
 
-    # Start the training
-    train(model, config, train_loader, val_loader, test_loader)
+    # Either run testing only or full training+testing
+    if args.test:
+        print("Running in test-only mode...")
+        test_model(model, config, test_loader, train_loader)
+    else:
+        print("Running full training pipeline...")
+        train(model, config, train_loader, val_loader, test_loader)
+
+    if config['logging']['use_wandb']:
+        wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="configs/debug_config.yaml", help="Path to config file")
+    parser.add_argument("--config_path", type=str, default="configs/debug_vit_config.yaml", help="Path to config file")
+    parser.add_argument("--test", action="store_true", help="Run in test-only mode")
     args = parser.parse_args()
     main(args)
     

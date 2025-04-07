@@ -11,6 +11,7 @@ image_model:
   pretrained: true
   freeze_parameters: false
   use_predictions_as_features: false
+  output_attentions: false
 
 model:
   graph_layer: 'GAT' # GCN, GAT
@@ -33,3 +34,6 @@ logging:
   use_wandb: true
   wandb_project: 'spatial_transcriptomics_hf'
   wandb_name: 'uni-GAT-7-gated'
+  save_checkpoints: true
+  resume_from_checkpoint: false
+  checkpoint_dir: 'checkpoints'
